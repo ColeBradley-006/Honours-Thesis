@@ -7,7 +7,7 @@ datasets = []
 for each in filenames:
     datasets.append(np.loadtxt(each))
 
-for i in range(10):
+for i in range(21):
 
     
     exact = datasets[0][i]
@@ -24,6 +24,6 @@ for i in range(10):
     plt.plot(x,lf, label = "Leap-Frog")
     plt.plot(x,mac, label = "MacCormack")
     plt.plot(x,up, label = "Upwind")
-    plt.title("U at time t=" + str(i) + "s")
+    plt.title("U at time t=" + str(i / 2.0) + "s")
     plt.legend()
     plt.show()
