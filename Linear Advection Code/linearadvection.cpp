@@ -5,8 +5,8 @@
 using namespace std;
 
 class Grid{
+    
     public:
-
     //The below creates a grid with our initial condition in place
     Grid(){
         for (int i = 0; i < X; i++)
@@ -118,36 +118,42 @@ int main(){
     for (int i = 0; i < 6; i ++){
         switch(i){
             case 0: {
+                cout << "Calculating the exact solution for the PDE..." << endl << endl;
                 Grid current = Grid();
                 current.exact();
                 current.print(solvers[i]);
                 break;
             }
             case 1:{
+                cout << "Calculating the solution using upwind technique for the PDE..." << endl << endl;
                 Grid current = Grid();
                 current.upwind();
                 current.print(solvers[i]);
                 break;
             }
             case 2:{
+                cout << "Calculating the solution using Lax technique for the PDE..." << endl << endl;
                 Grid current = Grid();
                 current.lax();
                 current.print(solvers[i]);
                 break;
             }
             case 3:{
+                cout << "Calculating the solution using Lax-Wendroff technique for the PDE..." << endl << endl;
                 Grid current = Grid();
                 current.lax_wendroff();
                 current.print(solvers[i]);
                 break;
             }
             case 4:{
+                cout << "Calculating the solution using Leap-Frog technique for the PDE..." << endl << endl;
                 Grid current = Grid();
                 current.leap_frog();
                 current.print(solvers[i]);
                 break;
             }
             case 5:{
+                cout << "Calculating the solution using MacCormack technique for the PDE..." << endl << endl;
                 Grid current = Grid();
                 current.maccormack();
                 current.print(solvers[i]);
@@ -155,7 +161,6 @@ int main(){
             }
         }
     }
-
-    cout << "Did this work?";
+    cout << "All text files created" << endl;
     return 0;
 }
