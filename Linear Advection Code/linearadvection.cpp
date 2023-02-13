@@ -146,9 +146,9 @@ int main(){
     cout << "\tWelcome to the Linear Advection solver" << endl << endl ;
     cout << "This solver will use five different schemes to solve the linear advection equation" << endl;
     cout << "The initial condition is u = 1/2 * (1 + tanh[250(x-20)]) for x between 0 and 40" << endl << endl;
-    int meshPoints[4] = {10, 20, 41, 82};
-    double errors[5][4]= {0};
-    for (int j = 0; j < 4; j++){
+    int meshPoints[5] = {10, 20, 41, 82,164};
+    double errors[5][5]= {0};
+    for (int j = 0; j < 5; j++){
         cout << "Calculating the exact solution for the PDE..." << endl << endl;
         Grid exact_grid = Grid(meshPoints[j]);
         exact_grid.exact();
@@ -204,7 +204,7 @@ int main(){
     fstream myfile;
     myfile.open("errors.txt",fstream::out);
     for (int n = 0; n < 5; n ++){
-        for (int j = 0; j < 4; j++){
+        for (int j = 0; j < 5; j++){
         myfile << errors[n][j] << "\t";
         }
         myfile<<endl;
