@@ -105,15 +105,9 @@ class Grid{
         {
             for (int j = 0; j < points; j ++){
                 grid[n + 1][j] = grid[n][j] - dt / dx * c * (grid[n][j] - grid[n][j - 1]);
-            }
-            grid[n + 1][0] = grid[n][0];
-        }
-        //Now we find the u n + 1 term
-        for (int n = 0; n < 20; n++)
-        {
-            for (int j = 1; j < points; j ++){
                 grid[n + 1][j] = 0.5 * (grid[n + 1][j] + grid[n][j] - dt / dx * (grid[n + 1][j] - grid[n + 1][j - 1]));
             }
+            grid[n + 1][0] = grid[n][0];
         }
     }
 
