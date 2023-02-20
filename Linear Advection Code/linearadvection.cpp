@@ -9,10 +9,11 @@ class Grid{
     public:
     
     //The below creates a grid with our initial condition in place
-    Grid(int meshSize){
+    Grid(int meshSize, double timestep){
         dx = X / meshSize;
         points = meshSize;
-        for (int i = 0; i < 21; i++){
+        dt = timestep;
+        for (int i = 0; i < T/dt; i++){
             grid[i] = new double[meshSize]{0};
         }
         for (int i = 0; i < points; i++)
@@ -28,30 +29,30 @@ class Grid{
 
         myfile.open(name + ".txt",fstream::out);
 
-        for (int n = 0; n < 21; n ++){
+        for (int n = 0; n < T/dt; n ++){
             for (int j = 0; j < points; j++){
                 myfile << grid[n][j] << "\t";
             }
             myfile<<endl;
         }
         myfile.close();
-        for (int i = 0; i < 21; i++){
+        for (int i = 0; i < T/dt; i++){
             delete[] grid[i];
         }
     }
 
     //Solves for the exact values considering the initial condition
     void exact(){
-        for (int n = 1; n < 21; n++){
+        for (int n = 1; n < T/dt; n++){
             for (int j = 0; j < points; j++){
-                grid[n][j] = 0.5 * (1.0 + tanh (250.0 * ((j * dx - 0.5 * (n/2.0)) - 20.0)));
+                grid[n][j] = 0.5 * (1.0 + tanh (250.0 * ((j * dx - 0.5 * n * dt) - 20.0)));
             }
         }
     }
 
     //Uses the upwind solver
     void upwind(){
-        for (int n = 0; n < 20; n++)
+        for (int n = 0; n < T/dt - 1; n++)
         {
             for (int j = 1; j < points; j ++){
                 grid[n + 1][j] = grid[n][j] - dt / dx * c * (grid[n][j] - grid[n][j - 1]);
@@ -62,7 +63,7 @@ class Grid{
 
     //Uses the lax solver
     void lax(){
-        for (int n = 0; n < 20; n ++){
+        for (int n = 0; n < T/dt - 1; n ++){
             for (int j = 1; j < points; j ++){
                 grid[n + 1][j] = 0.5 * (grid[n][j + 1] + grid[n][j - 1]) - dt / dx * c / 2 * (grid[n][j + 1] - grid[n][j - 1]);
             }
@@ -73,7 +74,7 @@ class Grid{
 
     //Uses the Lax-Wendroff Solver
     void lax_wendroff(){
-        for (int n = 0; n < 20; n++){
+        for (int n = 0; n < T/dt - 1; n++){
             for (int j = 1; j < points; j++){
                 grid[n + 1][j] = grid[n][j] - c / 2 * dt / dx * (grid[n][j + 1] - grid[n][j - 1]) + pow(c * dt / dx, 2.0) / 2 * (grid[n][j + 1] - 2 * grid[n][j] + grid[n][j - 1]);
             }
@@ -89,7 +90,7 @@ class Grid{
             grid[1][j] = grid[0][j] - dt / dx * c * (grid[0][j] - grid[0][j - 1]);
             }
         grid[1][0] = grid[0][0];
-        for (int n = 1; n < 20; n++){
+        for (int n = 1; n < T/dt - 1; n++){
             for (int j = 1; j < points; j++){
                 grid[n + 1][j] = grid[n - 1][j] - c * dt / dx * (grid[n][j + 1]- grid[n][j - 1]);
             }
@@ -101,7 +102,7 @@ class Grid{
     //Uses the MacCormack Solver Technique
     void maccormack(){
         //This finds the u n + 1 bar term
-        for (int n = 0; n < 20; n++)
+        for (int n = 0; n < T/dt - 1; n++)
         {
             for (int j = 0; j < points; j ++){
                 grid[n + 1][j] = grid[n][j] - dt / dx * c * (grid[n][j] - grid[n][j - 1]);
@@ -115,8 +116,8 @@ class Grid{
     static double error(Grid test, Grid exact, int size){
         double tot = 0;
         for (int i = 1; i < size; i++){
-            double ue = exact.grid[10][i];
-            double ut = test.grid[10][i];
+            double ue = exact.grid[1000][i];
+            double ut = test.grid[1000][i];
             double error = pow(ue - ut, 2);
             tot += error;
         }
@@ -129,28 +130,29 @@ class Grid{
     float t0 = 0.0;
     float tf = 10.0;
     float X = 41.0;
-    float dt = 0.5;
-    int T = 20;
+    float dt;
+    int T = 10;
     int points;
     float dx;
-    double** grid = new double*[21];
+    double** grid = new double*[2000];
 };
 
 int main(){
     cout << "\tWelcome to the Linear Advection solver" << endl << endl ;
     cout << "This solver will use five different schemes to solve the linear advection equation" << endl;
     cout << "The initial condition is u = 1/2 * (1 + tanh[250(x-20)]) for x between 0 and 40" << endl << endl;
-    int meshPoints[5] = {10, 20, 41, 82,164};
-    double errors[5][5]= {0};
+    int meshPoints[5] = {40, 80, 160, 320, 1280};
+    double errors[5][5] = {0};
+    double timestep = 0.005;
     for (int j = 0; j < 5; j++){
         cout << "Calculating the exact solution for the PDE..." << endl << endl;
-        Grid exact_grid = Grid(meshPoints[j]);
+        Grid exact_grid = Grid(meshPoints[j], timestep);
         exact_grid.exact();
         for (int k = 0; k < 5; k ++){
             switch(k){
                 case 0:{
                     cout << "Calculating the solution using upwind technique for the PDE..." << endl << endl;
-                    Grid upwind_grid = Grid(meshPoints[j]);
+                    Grid upwind_grid = Grid(meshPoints[j], timestep);
                     upwind_grid.upwind();
                     errors[k][j] = Grid::error(upwind_grid, exact_grid, meshPoints[j]);
                     upwind_grid.print("upwind" + to_string(j));
@@ -158,7 +160,7 @@ int main(){
                 }
                 case 1:{
                     cout << "Calculating the solution using Lax technique for the PDE..." << endl << endl;
-                    Grid lax_grid = Grid(meshPoints[j]);
+                    Grid lax_grid = Grid(meshPoints[j], timestep);
                     lax_grid.lax();
                     k = 1;
                     errors[k][j] = Grid::error(lax_grid, exact_grid, meshPoints[j]);
@@ -167,7 +169,7 @@ int main(){
                 }
                 case 2:{
                     cout << "Calculating the solution using Lax-Wendroff technique for the PDE..." << endl << endl;
-                    Grid laxW_grid = Grid(meshPoints[j]);
+                    Grid laxW_grid = Grid(meshPoints[j], timestep);
                     laxW_grid.lax_wendroff();
                     k = 2;
                     errors[k][j] = Grid::error(laxW_grid, exact_grid, meshPoints[j]);
@@ -176,7 +178,7 @@ int main(){
                 }
                 case 3:{
                     cout << "Calculating the solution using Leap-Frog technique for the PDE..." << endl << endl;
-                    Grid LF_grid = Grid(meshPoints[j]);
+                    Grid LF_grid = Grid(meshPoints[j], timestep);
                     LF_grid.leap_frog();
                     k = 3;
                     errors[k][j] = Grid::error(LF_grid, exact_grid, meshPoints[j]);
@@ -185,7 +187,7 @@ int main(){
                 }
                 case 4:{
                     cout << "Calculating the solution using MacCormack technique for the PDE..." << endl << endl;
-                    Grid mac_grid = Grid(meshPoints[j]);
+                    Grid mac_grid = Grid(meshPoints[j], timestep);
                     mac_grid.maccormack();
                     errors[k][j] = Grid::error(mac_grid, exact_grid, meshPoints[j]);
                     mac_grid.print("maccormack" + to_string(j));
