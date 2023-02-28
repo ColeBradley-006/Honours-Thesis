@@ -64,18 +64,18 @@ class Grid{
     //Uses the lax solver
     void lax(){
         for (int n = 0; n < T/dt - 1; n ++){
-            for (int j = 1; j < points; j ++){
-                grid[n + 1][j] = 0.5 * (grid[n][j + 1] + grid[n][j - 1]) - dt / dx * c / 2 * (grid[n][j + 1] - grid[n][j - 1]);
-            }
             grid[n + 1][0] = grid[n][0];
             grid[n + 1][points - 1] = grid[n][points - 1];
-        }
+            for (int j = 1; j < points - 1; j ++){
+                grid[n + 1][j] = 0.5*(grid[n][j + 1] + grid[n][j-1])- dt / dx * c / 2 * (grid[n][j + 1] - grid[n][j - 1]);
+            }  
+        }              
     }
 
     //Uses the Lax-Wendroff Solver
     void lax_wendroff(){
         for (int n = 0; n < T/dt - 1; n++){
-            for (int j = 1; j < points; j++){
+            for (int j = 1; j < points - 1; j++){
                 grid[n + 1][j] = grid[n][j] - c / 2 * dt / dx * (grid[n][j + 1] - grid[n][j - 1]) + pow(c * dt / dx, 2.0) / 2 * (grid[n][j + 1] - 2 * grid[n][j] + grid[n][j - 1]);
             }
             grid[n + 1][0] = grid[n][0];
@@ -101,14 +101,21 @@ class Grid{
 
     //Uses the MacCormack Solver Technique
     void maccormack(){
+        double** predict = new double*[2000];
+        for (int i = 0; i < T/dt; i++){
+            predict[i] = new double[points]{0};
+        }
         //This finds the u n + 1 bar term
         for (int n = 0; n < T/dt - 1; n++)
         {
+            predict[n + 1][0] = grid[n][0];
             for (int j = 0; j < points; j ++){
-                grid[n + 1][j] = grid[n][j] - dt / dx * c * (grid[n][j] - grid[n][j - 1]);
-                grid[n + 1][j] = 0.5 * (grid[n + 1][j] + grid[n][j] - dt / dx * (grid[n + 1][j] - grid[n + 1][j - 1]));
+                predict[n + 1][j] = grid[n][j] - dt / dx * c * (grid[n][j + 1] - grid[n][j]);
             }
-            grid[n + 1][0] = grid[n][0];
+            for (int j = 1; j < points - 1; j ++){
+                grid[n + 1][j] = 0.5 * (predict[n + 1][j] + grid[n][j] - dt / dx * c * (predict[n+1][j] - predict[n + 1][j - 1]));
+            }
+            grid[n+1][points - 1] = grid[n][points-1];
         }
     }
 
