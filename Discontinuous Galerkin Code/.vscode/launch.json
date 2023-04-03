@@ -8,7 +8,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/Eigen"
+                "C:/eigen/**"
             ],
             "defines": [
                 "_DEBUG",
