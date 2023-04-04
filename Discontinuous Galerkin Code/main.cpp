@@ -8,7 +8,7 @@ using namespace Eigen;
 
 
 
-//Good with no bug
+//Good with proper outputs
 VectorXf jacobiP(int N, float a, float b, VectorXf x){
     
     VectorXf xp = x;
@@ -34,15 +34,9 @@ VectorXf jacobiP(int N, float a, float b, VectorXf x){
 
     float aold = 2/(2+a+b)*sqrt((a+1)*(b+1)/(a+b+3));
     for (int i = 0; i < N - 1; i++) {
-        float h1 = 2*i+a+b;
-        float anew = 2.0/(h1+2)*sqrt((i+1)*(i+1+a+b)*(i+1+a)*(i+1+b)/(h1+1)/(h1+3));
-        float bnew;
-        if (a*a-b*b != 0 && h1!= 0){
-            float bnew = -(a*a-b*b)/h1/(h1+2); 
-        }
-        else{
-            float bnew = 0;
-        }
+        float h1 = 2*(i+1)+a+b;
+        float anew = 2.0/(h1+2)*sqrt(((i+1)+1)*((i+1)+1+a+b)*((i+1)+1+a)*((i+1)+1+b)/(h1+1)/(h1+3));
+        float bnew = 0;
         VectorXf right = (xp.array() - bnew).matrix();
         VectorXf left = -aold*PL.row(i);
         VectorXf right2 = right.cwiseProduct(PL.row(i+1).transpose());
@@ -52,7 +46,7 @@ VectorXf jacobiP(int N, float a, float b, VectorXf x){
     return PL.row(N).transpose();
 }
 
-//Complete with no bug
+//Good with proper outputs
 VectorXf gradJacobiP(int N, float a, float b, VectorXf x){
     VectorXf dP(x.size());
     if (N == 0){
@@ -64,7 +58,7 @@ VectorXf gradJacobiP(int N, float a, float b, VectorXf x){
     return dP;
 }
 
-//Complete with no bug
+//Complete, outputting the proper results
 tuple<VectorXf,VectorXf> jacobiGQ(int N, float a, float b){
     VectorXf x(N), w(N);
 
@@ -104,7 +98,7 @@ tuple<VectorXf,VectorXf> jacobiGQ(int N, float a, float b){
     return tuple<VectorXf,VectorXf>{x,w};
 }
 
-//Complete with no bug
+//Complete, outputting the proper results
 VectorXf jacobiGL(int N, float a, float b){
     VectorXf x(N+1);
     x.setZero();
@@ -113,7 +107,7 @@ VectorXf jacobiGL(int N, float a, float b){
         x(1) = 1.0;
         return x;
     }
-    tuple<VectorXf,VectorXf> gq = jacobiGQ(N, a + 1, b+ 1);
+    tuple<VectorXf,VectorXf> gq = jacobiGQ(N-2, a + 1, b+ 1);
 
     VectorXf quads = get<0>(gq);
     x(0) = -1.0;
@@ -189,7 +183,7 @@ tuple<int, VectorXf, int, MatrixXd> meshGen(float xMin, float xMax, int K){
 tuple<MatrixXf,MatrixXf> geometricFactors(MatrixXf x, MatrixXf Dr){
     MatrixXf J = Dr*x;
     MatrixXf rx = 1.0/J.array();
-    return tuple<MatrixXf,MatrixXf>{J,rx.matrix()};
+    return tuple<MatrixXf,MatrixXf>{rx.matrix(),J};
 }
 
 //The rest of the function are written into the main script
@@ -233,7 +227,6 @@ int main() {
     MatrixXf V = vandermonde(N, r);
     MatrixXf invV = V.inverse();
     MatrixXf Dr = dMatrix(N,r,V);
-    
     //The following Section is the Lift code:
     MatrixXf Emat(Np, Nfaces*Nfp);
     Emat.setZero();
@@ -243,22 +236,18 @@ int main() {
     MatrixXf lift = V * (vt * Emat);
     //The lift code is finished
 
-    VectorXf va = EToV.col(0).transpose();
-    VectorXf vb = EToV.col(1).transpose();
-
+    VectorXd va = EToV.col(0).transpose();
+    VectorXd vb = EToV.col(1).transpose();
 
     MatrixXf x(Np,K);
     for (int i = 0; i < Np; i++) {
-        
         for (int j = 0; j < K; j++){
-
             int aLoc = va(j);
             int bLoc = vb(j);
             float rValue = r(i) + 1.0;
             x(i,j) = VX(aLoc) + 0.5 * rValue * (VX(bLoc)-VX(aLoc));
         }
     }
-
     
     tuple<MatrixXf,MatrixXf> geom = geometricFactors(x, Dr);
     
@@ -278,28 +267,29 @@ int main() {
         Fmask(idx) = fmask1[i];
         idx++;
     }
-    
     for (int i = 0; i < fmask2.size(); i++) {
         Fmask(idx) = fmask2[i];
         idx++;
     }
+    
     Fmask.transposeInPlace();
-    MatrixXd Fx(Fmask.size(), 1);
-
+    MatrixXf Fx(Fmask.size(), x.row(0).size());
+    
     for (int i = 0; i < Fmask.size(); i++) {
         Fx.row(i) = x.row(Fmask(i));
     }
-
+    
     MatrixXf nx = normals1D(Nfp, Nfaces, K);
     
     MatrixXf J = get<1>(geom);
-    MatrixXf Fscale(J.size(),K);
+    MatrixXf Fscale(Fmask.size(),K);
     for (int i = 0; i < Fmask.size(); i ++){
         Fscale.row(i) = 1 / (J.row(Fmask(i)).array());
     }
-
+    
+    
     //Below is the connect1D code
-
+    
     Vector2d vn(0,1);
     SparseMatrix<int> SpFToV(TotalFaces, Nv);
     SpFToV.reserve(2 * TotalFaces);
@@ -321,28 +311,48 @@ int main() {
     for (int k = 0; k < SpFToF.outerSize(); k++) {
         for (SparseMatrix<int>::InnerIterator it(SpFToF, k); it; ++it) {
             if (it.value() == 1) {
-                faces1.push_back(k);
+                faces1.push_back(it.row());
                 faces2.push_back(it.col());
             }
         }
     }
 
-    // Convert face global number to element and face numbers
-    VectorXi element1 = (VectorXi::Map(&faces1[0], faces1.size()) / Nfaces).array() + 1;
-    VectorXi face1 = ((VectorXi::Map(&faces1[0], faces1.size())).array() % Nfaces) + 1;
-    VectorXi element2 = (VectorXi::Map(&faces2[0], faces2.size()) / Nfaces).array() + 1;
-    VectorXi face2 = (VectorXi::Map(&faces2[0], faces2.size()) % Nfaces).array() + 1;
+    VectorXi faces1v = Eigen::Map<VectorXi,Eigen::Unaligned>(faces1.data(),faces1.size());
+    VectorXi faces2v = Eigen::Map<VectorXi,Eigen::Unaligned>(faces2.data(),faces2.size());
 
+    VectorXi element1 = (((faces1v.array() - 1) / Nfaces).floor() + 1).matrix();
+    VectorXi face1 = ((faces1v.array() - (Nfaces * (faces1v.array()/ Nfaces))) + 1).matrix();
+    VectorXi element2 = (((faces2v.array() - 1) / Nfaces).floor() + 1).matrix();
+    VectorXi face2 = ((faces2v.array() - (Nfaces * (faces2v.array()/ Nfaces))) + 1).matrix();
+        
+    // Convert face global number to element and face numbers
+    
     // Rearrange into Nelements x Nfaces sized arrays
-    MatrixXi ind(K, Nfaces);
-    ind.col(0) = element1 - 1;
-    ind.col(1) = face1 - 1;
-    EToE.resize(K, Nfaces);
+
+    Eigen::MatrixXi ind = (element1.array() - 1) * Nfaces + face1.array() - 1;
+    Eigen::MatrixXi EToE(K, Nfaces), EToF(K, Nfaces);
+    EToE = Eigen::MatrixXi::Constant(K, Nfaces, 1) * Eigen::RowVectorXi::LinSpaced(K, 1, K);
+    EToF = Eigen::MatrixXi::LinSpaced(K, 1, K).transpose() * Eigen::MatrixXi::Constant(1, Nfaces, 1);
+    for (int i = 0; i < ind.rows(); i++) {
+        EToE(ind(i)) = element2(i);
+        EToF(ind(i)) = face2(i);
+    }
+    cout << EToE;
+    cout << EToF;
+    /*EToE.resize(K, Nfaces);
     EToE.setConstant(-1);
     EToE.array().col(face1 - 1) = element2.array();
     EToF.resize(K, Nfaces);
     EToF.setConstant(-1);
     EToF.array().col(face1 - 1) = face2.array();
+    //Connect1D finished
+    //The following code is the BuildMaps function
+    std::vector<int> nodeVector;
+    for (int i = 0; i < K*Np; i++){
+        nodeVector.push_back(i);
+    }
+    VectorXi nodeidsVector = Eigen::Map<VectorXi,Eigen::Unaligned>(nodeVector.data(), nodeVector.size());
+    MatrixXi nodeids = nodeidsVector.asMatrix().reshape(Np, K); */
 
-    return 0;
+    return 0;   
 }
