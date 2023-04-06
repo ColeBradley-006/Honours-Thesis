@@ -286,8 +286,6 @@ int main() {
     for (int i = 0; i < Fmask.size(); i ++){
         Fscale.row(i) = 1 / (J.row(Fmask(i)).array());
     }
-    
-    
     //Below is the connect1D code
     
     Vector2d vn(0,1);
@@ -317,6 +315,7 @@ int main() {
         }
     }
 
+
     VectorXi faces1v = Eigen::Map<VectorXi,Eigen::Unaligned>(faces1.data(),faces1.size());
     VectorXi faces2v = Eigen::Map<VectorXi,Eigen::Unaligned>(faces2.data(),faces2.size());
 
@@ -324,35 +323,126 @@ int main() {
     VectorXi face1 = ((faces1v.array() - (Nfaces * (faces1v.array()/ Nfaces))) + 1).matrix();
     VectorXi element2 = (((faces2v.array() - 1) / Nfaces).floor() + 1).matrix();
     VectorXi face2 = ((faces2v.array() - (Nfaces * (faces2v.array()/ Nfaces))) + 1).matrix();
-        
-    // Convert face global number to element and face numbers
-    
-    // Rearrange into Nelements x Nfaces sized arrays
 
-    Eigen::MatrixXi ind = (element1.array() - 1) * Nfaces + face1.array() - 1;
-    Eigen::MatrixXi EToE(K, Nfaces), EToF(K, Nfaces);
-    EToE = Eigen::MatrixXi::Constant(K, Nfaces, 1) * Eigen::RowVectorXi::LinSpaced(K, 1, K);
-    EToF = Eigen::MatrixXi::LinSpaced(K, 1, K).transpose() * Eigen::MatrixXi::Constant(1, Nfaces, 1);
-    for (int i = 0; i < ind.rows(); i++) {
-        EToE(ind(i)) = element2(i);
-        EToF(ind(i)) = face2(i);
+    MatrixXi EToF(K,Nfaces);
+    MatrixXi EToE(K,Nfaces);
+    for (int k = 0; k < K; ++k){
+        for (int i = 0; i < Nfaces; ++i){
+            EToF(k,i) = i;
+            EToE(k,i) = k;
+        }
     }
-    cout << EToE;
-    cout << EToF;
-    /*EToE.resize(K, Nfaces);
-    EToE.setConstant(-1);
-    EToE.array().col(face1 - 1) = element2.array();
-    EToF.resize(K, Nfaces);
-    EToF.setConstant(-1);
-    EToF.array().col(face1 - 1) = face2.array();
+    for (int i = 0; i < element1.size(); ++i){
+        EToE(element1(i),face1(i)) = element2(i);
+        EToF(element1(i), face1(i)) = face2(i);
+    }
+    cout << EToE << endl;
+    cout << EToF << endl;
     //Connect1D finished
-    //The following code is the BuildMaps function
-    std::vector<int> nodeVector;
-    for (int i = 0; i < K*Np; i++){
-        nodeVector.push_back(i);
+    
+      //BuildMaps1D 
+    int ***vmapM_3D = new int**[Nfp];
+    int ***vmapP_3D = new int**[Nfp];
+    for(int i = 0; i<Nfp; ++i){
+        vmapM_3D[i] = new int*[Nfaces];
+        vmapP_3D[i] = new int*[Nfaces];
+        for(int j = 0; j<Nfaces; ++j){
+        vmapM_3D[i][j] = new int[K];
+        vmapP_3D[i][j] = new int[K];
+        for(int l = 0; l<K;++l){
+            vmapM_3D[i][j][l] = 0;
+            vmapP_3D[i][j][l] = 0;
+        }
+        }
     }
-    VectorXi nodeidsVector = Eigen::Map<VectorXi,Eigen::Unaligned>(nodeVector.data(), nodeVector.size());
-    MatrixXi nodeids = nodeidsVector.asMatrix().reshape(Np, K); */
+    int **nodeids = new int*[Np];
+    for(int n = 0; n<Np; ++n){
+        nodeids[n] = new int[K];
+    }
+    sk = 0;
+    for(int k = 0; k<K; ++k){
+        for(int n = 0; n<Np; ++n){
+        nodeids[n][k] = sk;
+        ++sk;
+        }
+    }
+
+    for(int k = 0; k<K; ++k){
+        for(int f = 0; f<Nfaces; ++f){
+        for(int n = 0; n<Nfp; ++n){
+            int value = Fmask(n,f);
+            vmapM_3D[n][f][k] = nodeids[value][k];
+        }
+        }
+    }
+    for(int n = 0; n<Np; ++n){
+        delete [] nodeids[n];
+    }
+    delete [] nodeids;
+
+    double *x1 = new double[Nfp];
+    double *x2 = new double[Nfp];
+    //REVISAR!!!
+    int k2, f2;
+    for(int k = 0; k<K; ++k){
+        for(int f = 0; f<Nfaces; ++f){
+            sk = 1;
+            k2 = EToE(k,f);
+            f2 = EToF(k,f);
+            for(int n = 0; n<Nfp; ++n){
+                x1[n] = x(vmapM_3D[n][f][k]%Np,vmapM_3D[n][f][k]/Np);
+                x2[n] = x(vmapM_3D[n][f2][k2]%Np,vmapM_3D[n][f2][k2]/Np);
+                sk*=(pow(x1[n]-x2[n],2)<NODETOL);
+            }
+            if(sk) for(int n = 0; n<Nfp; ++n) vmapP_3D[n][f][k] = vmapM_3D[n][f2][k2];
+        }
+    }
+    delete [] x1;
+    delete [] x2;
+    int *vmapM = new int[Nfp*Nfaces*K];
+    int *vmapP = new int[Nfp*Nfaces*K];
+    for(int k = 0; k<K; ++k){
+        for(int f = 0; f<Nfaces; ++f){
+        for(int n = 0; n<Nfp; ++n){
+            vmapM[n+f*Nfp+k*Nfp*Nfaces] = vmapM_3D[n][f][k];
+            vmapP[n+f*Nfp+k*Nfp*Nfaces] = vmapP_3D[n][f][k];
+        }
+        }
+    }
+    int res1 = 0;
+    for(int i = 0; i<Nfp*Nfaces*K; ++i){
+        res1 += (vmapM[i]==vmapP[i]);
+    }
+    int dimmapB = res1;
+    int *vmapB = new int[res1];
+    int *mapB = new int[res1];
+    int i1 = 0;
+    for(int i = 0; i<Nfp*Nfaces*K; ++i){
+        if(vmapM[i] == vmapP[i]){
+        mapB[i1] =  i;
+        vmapB[i1] = vmapM[i];
+        ++i1;
+        }  
+    }
+    for(int n = 0; n<Nfp; ++n){
+        for(int f=0; f<Nfaces; ++f){
+        delete [] vmapM_3D[n][f];
+        delete [] vmapP_3D[n][f];
+        } 
+        delete [] vmapM_3D[n];
+        delete [] vmapP_3D[n];
+    }
+    delete [] vmapM_3D;
+    delete [] vmapP_3D;
+    int mapI = 0;
+    int mapO = K*Nfaces-1;
+    int vmapI = 0;
+    int vmapO = K*Np-1;
+
+
+
+    //Below We Begin the advection code
+    //This will run the timesteps and solve the problem
 
     return 0;   
 }
