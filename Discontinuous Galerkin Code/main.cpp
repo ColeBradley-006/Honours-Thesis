@@ -186,6 +186,24 @@ tuple<MatrixXf,MatrixXf> geometricFactors(MatrixXf x, MatrixXf Dr){
     return tuple<MatrixXf,MatrixXf>{rx.matrix(),J};
 }
 
+MatrixXf advecRHS(int Nfp, int Nfaces, int K, VectorXi vmapM, VectorXi vmapP, MatrixXf nx, float a, MatrixXf u, int mapI, int vmapI, int mapO, MatrixXf Dr, MatrixXf rx, MatrixXf Lift, MatrixXf Fscale){
+    float alpha = 1;
+
+    MatrixXf du(Nfp*Nfaces, K);
+
+    for (int i = 0; i < vmapM.size(); i++){
+        int rowL = vmapM(i)%i;
+        int colL = floor(vmapM(i)/i);
+        int rowR = vmapP(i)%i;
+        int colR = floor(vmapP(i)/i);
+        float coeff = u(rowL, colL) - u(rowR, colR);
+        du.col(i) = (coeff * (a*nx.col(i) - (1-alpha)*abs(a*nx.col(i))))/2;
+
+    }
+    
+    return MatrixXf(1,1);
+}
+
 //The rest of the function are written into the main script
 int main() {
     
@@ -302,12 +320,12 @@ int main() {
     }
     Eigen::SparseMatrix<int> sparseIdentity(TotalFaces,TotalFaces);
     sparseIdentity.setIdentity();
-    SparseMatrix<int> SpFToF = SpFToV * SpFToV.transpose() - sparseIdentity;
+    SparseMatrix<int> SpFToFR = SpFToV * SpFToV.transpose() - sparseIdentity;
 
     // Find complete face to face connections
     std::vector<int> faces1, faces2;
-    for (int k = 0; k < SpFToF.outerSize(); k++) {
-        for (SparseMatrix<int>::InnerIterator it(SpFToF, k); it; ++it) {
+    for (int k = 0; k < SpFToFR.outerSize(); k++) {
+        for (SparseMatrix<int>::InnerIterator it(SpFToFR, k); it; ++it) {
             if (it.value() == 1) {
                 faces1.push_back(it.row());
                 faces2.push_back(it.col());
@@ -315,134 +333,148 @@ int main() {
         }
     }
 
-
     VectorXi faces1v = Eigen::Map<VectorXi,Eigen::Unaligned>(faces1.data(),faces1.size());
     VectorXi faces2v = Eigen::Map<VectorXi,Eigen::Unaligned>(faces2.data(),faces2.size());
 
-    VectorXi element1 = (((faces1v.array() - 1) / Nfaces).floor() + 1).matrix();
-    VectorXi face1 = ((faces1v.array() - (Nfaces * (faces1v.array()/ Nfaces))) + 1).matrix();
-    VectorXi element2 = (((faces2v.array() - 1) / Nfaces).floor() + 1).matrix();
-    VectorXi face2 = ((faces2v.array() - (Nfaces * (faces2v.array()/ Nfaces))) + 1).matrix();
-
+    VectorXi element1 = ((faces1v.array() / Nfaces).floor()).matrix();
+    VectorXi face1 = (faces1v.array() - (Nfaces * (faces1v.array()/ Nfaces))).matrix();
+    VectorXi element2 = ((faces2v.array() / Nfaces).floor()).matrix();
+    VectorXi face2 = (faces2v.array() - (Nfaces * (faces2v.array()/ Nfaces))).matrix();
     MatrixXi EToF(K,Nfaces);
     MatrixXi EToE(K,Nfaces);
+
     for (int k = 0; k < K; ++k){
         for (int i = 0; i < Nfaces; ++i){
             EToF(k,i) = i;
             EToE(k,i) = k;
         }
     }
-    for (int i = 0; i < element1.size(); ++i){
-        EToE(element1(i),face1(i)) = element2(i);
-        EToF(element1(i), face1(i)) = face2(i);
-    }
-    cout << EToE << endl;
-    cout << EToF << endl;
-    //Connect1D finished
-    
-      //BuildMaps1D 
-    int ***vmapM_3D = new int**[Nfp];
-    int ***vmapP_3D = new int**[Nfp];
-    for(int i = 0; i<Nfp; ++i){
-        vmapM_3D[i] = new int*[Nfaces];
-        vmapP_3D[i] = new int*[Nfaces];
-        for(int j = 0; j<Nfaces; ++j){
-        vmapM_3D[i][j] = new int[K];
-        vmapP_3D[i][j] = new int[K];
-        for(int l = 0; l<K;++l){
-            vmapM_3D[i][j][l] = 0;
-            vmapP_3D[i][j][l] = 0;
-        }
-        }
-    }
-    int **nodeids = new int*[Np];
-    for(int n = 0; n<Np; ++n){
-        nodeids[n] = new int[K];
-    }
-    sk = 0;
-    for(int k = 0; k<K; ++k){
-        for(int n = 0; n<Np; ++n){
-        nodeids[n][k] = sk;
-        ++sk;
-        }
+
+    for (int i = 1; i < K; ++i){
+        EToE(i,0) = element2(2*(i-1));
+        EToF(i,0) = face2(2*(i-1));
     }
 
+    for (int i = 0; i < K-1; ++i){
+        EToE(i,1) = element2(2*i+1);
+        EToF(i,1) = face2(2*i+1);
+    }
+
+    //Connect1D finished
+    //BuildMaps1D 
+    
+    MatrixXi nodeids(Np,K);
+    int number = 0;
+    for (int j = 0; j < K; ++j){
+        for (int i = 0; i < Np; ++i){
+            nodeids(i,j) = number;
+            number += 1;
+        }
+    }
+    
+    int **vmapM_3D = new int*[K];
+    int **vmapP_3D = new int*[K]; 
+    for(int i = 0; i<K; ++i){
+        vmapM_3D[i] = new int[Nfaces];
+        vmapP_3D[i] = new int[Nfaces];
+        for(int j = 0; j<Nfaces; ++j){
+            vmapM_3D[i][j] = 0;
+            vmapP_3D[i][j] = 0;
+        }
+    }
+    
     for(int k = 0; k<K; ++k){
         for(int f = 0; f<Nfaces; ++f){
-        for(int n = 0; n<Nfp; ++n){
-            int value = Fmask(n,f);
-            vmapM_3D[n][f][k] = nodeids[value][k];
-        }
+            int row = Fmask(f);
+            int node = nodeids(row, k);
+            vmapM_3D[k][f] = node;
         }
     }
-    for(int n = 0; n<Np; ++n){
-        delete [] nodeids[n];
-    }
-    delete [] nodeids;
-
-    double *x1 = new double[Nfp];
-    double *x2 = new double[Nfp];
-    //REVISAR!!!
+    cout << "EToE" << endl << EToE << endl;
+    cout << "EToF" << endl << EToF << endl;
     int k2, f2;
     for(int k = 0; k<K; ++k){
         for(int f = 0; f<Nfaces; ++f){
-            sk = 1;
             k2 = EToE(k,f);
             f2 = EToF(k,f);
-            for(int n = 0; n<Nfp; ++n){
-                x1[n] = x(vmapM_3D[n][f][k]%Np,vmapM_3D[n][f][k]/Np);
-                x2[n] = x(vmapM_3D[n][f2][k2]%Np,vmapM_3D[n][f2][k2]/Np);
-                sk*=(pow(x1[n]-x2[n],2)<NODETOL);
+            
+            int vidM = vmapM_3D[k][f];
+            int vidP = vmapM_3D[k2][f2];
+            int col1 = floor(vidM/Np);
+            int col2 = floor(vidP/Np);
+            float x1 = x(vidM%Np, col1);
+            float x2 = x(vidP%Np, col2);
+
+            double D = pow((x1-x2),2);
+            if (D < NODETOL){
+                vmapP_3D[k][f] = vmapM_3D[k2][f2];
             }
-            if(sk) for(int n = 0; n<Nfp; ++n) vmapP_3D[n][f][k] = vmapM_3D[n][f2][k2];
         }
     }
-    delete [] x1;
-    delete [] x2;
-    int *vmapM = new int[Nfp*Nfaces*K];
-    int *vmapP = new int[Nfp*Nfaces*K];
+
+    VectorXi vmapP(Nfp*Nfaces*K);
+    VectorXi vmapM(Nfp*Nfaces*K);
+
+    int location = 0;
     for(int k = 0; k<K; ++k){
         for(int f = 0; f<Nfaces; ++f){
-        for(int n = 0; n<Nfp; ++n){
-            vmapM[n+f*Nfp+k*Nfp*Nfaces] = vmapM_3D[n][f][k];
-            vmapP[n+f*Nfp+k*Nfp*Nfaces] = vmapP_3D[n][f][k];
+            vmapP(location) = vmapP_3D[k][f];
+            vmapM(location) = vmapM_3D[k][f];
+            location += 1;
         }
+    }
+    
+    //Now find boundary nodes
+    std::vector<int> boundaries;
+
+    for (int i =0; i < vmapP.size(); i ++){
+        if(vmapP(i) = vmapM(i)){
+            boundaries.push_back(i);
         }
     }
-    int res1 = 0;
-    for(int i = 0; i<Nfp*Nfaces*K; ++i){
-        res1 += (vmapM[i]==vmapP[i]);
+
+    VectorXi vmapB(boundaries.size());
+
+    for (int i = 0; i < boundaries.size(); i++){
+        vmapB(i) = vmapM(boundaries.at(i));
     }
-    int dimmapB = res1;
-    int *vmapB = new int[res1];
-    int *mapB = new int[res1];
-    int i1 = 0;
-    for(int i = 0; i<Nfp*Nfaces*K; ++i){
-        if(vmapM[i] == vmapP[i]){
-        mapB[i1] =  i;
-        vmapB[i1] = vmapM[i];
-        ++i1;
-        }  
-    }
-    for(int n = 0; n<Nfp; ++n){
-        for(int f=0; f<Nfaces; ++f){
-        delete [] vmapM_3D[n][f];
-        delete [] vmapP_3D[n][f];
-        } 
+    
+    //Must delete the 3D dynamic memory arrays to avoid mem leak!!
+    for(int n = 0; n<K; ++n){
         delete [] vmapM_3D[n];
         delete [] vmapP_3D[n];
     }
     delete [] vmapM_3D;
     delete [] vmapP_3D;
+
     int mapI = 0;
     int mapO = K*Nfaces-1;
     int vmapI = 0;
     int vmapO = K*Np-1;
-
-
-
+    cout << "VmapM" << endl << vmapM << endl;
+    cout << "VmapP" << endl << vmapP << endl;
+    cout << "VmapB" << endl << vmapB << endl;
+    //Build maps code complete!!!
+    
     //Below We Begin the advection code
-    //This will run the timesteps and solve the problem
+    float FinalTime = 5;
+    MatrixXf u = (0.5*(1+tanh(250*(x.array()-20)))).matrix();
+
+    float time = 0;
+    MatrixXf residual = MatrixXf::Zero(Np,K);
+    float dt = 0.001;
+    int Nsteps = ceil(FinalTime/dt);
+    float a = 0.5;
+
+    for (int t=0; t < Nsteps; t++){
+        for (int i = 0; i < 5; i++){
+            float localTime = time + rk4c(i) * dt;
+            //rhsu
+            //residual
+            //u
+        }
+        time = time + dt;
+    }
 
     return 0;   
 }
