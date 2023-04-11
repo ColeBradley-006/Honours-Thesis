@@ -186,6 +186,7 @@ tuple<MatrixXf,MatrixXf> geometricFactors(MatrixXf x, MatrixXf Dr){
     return tuple<MatrixXf,MatrixXf>{rx.matrix(),J};
 }
 
+//This should work if calculations are correct
 MatrixXf advecRHS(int Nfp, int Nfaces, int K, VectorXi vmapM, VectorXi vmapP, MatrixXf nx, float a, MatrixXf u, int mapI, int vmapI, int mapO, MatrixXf Dr, MatrixXf rx, MatrixXf Lift, MatrixXf Fscale){
     float alpha = 1;
 
@@ -197,11 +198,17 @@ MatrixXf advecRHS(int Nfp, int Nfaces, int K, VectorXi vmapM, VectorXi vmapP, Ma
         int rowR = vmapP(i)%i;
         int colR = floor(vmapP(i)/i);
         float coeff = u(rowL, colL) - u(rowR, colR);
-        du.col(i) = (coeff * (a*nx.col(i) - (1-alpha)*abs(a*nx.col(i))))/2;
-
+        du.col(i) = ((coeff * (a*nx.col(i).array() - (1-alpha)*abs(a*nx.col(i).array())))/2).matrix();
     }
-    
-    return MatrixXf(1,1);
+
+    //Now boundary conditions
+    int uin = 0;
+    du(0,0) = (u(0,0) - uin) * (a*nx(0,0) - (1-alpha)*abs(a*nx(0,0)))/2;
+    int row = mapO%Nfaces;
+    int col = floor(mapO/Nfaces);
+    du(row, col) = 0.0;
+    du = (-a*rx.array()*((Dr*u).array())).matrix() + Lift*((Fscale.array()*du.array()).matrix());
+    return du;
 }
 
 //The rest of the function are written into the main script
@@ -268,6 +275,7 @@ int main() {
     }
     
     tuple<MatrixXf,MatrixXf> geom = geometricFactors(x, Dr);
+    MatrixXf rx = get<0>(geom);
     
     std::vector<int> fmask1, fmask2;
     for (int i = 0; i < Np; i++) {
@@ -469,9 +477,9 @@ int main() {
     for (int t=0; t < Nsteps; t++){
         for (int i = 0; i < 5; i++){
             float localTime = time + rk4c(i) * dt;
-            //rhsu
-            //residual
-            //u
+            MatrixXf rhsu = advecRHS(Nfp, Nfaces, K, vmapM, vmapP, nx, a, u, mapI, vmapI, mapO, Dr, rx, lift, Fscale);
+            MatrixXf result = rk4a(i)*result + dt*rhsu;
+            u = u + rk4b(i)*result;
         }
         time = time + dt;
     }
