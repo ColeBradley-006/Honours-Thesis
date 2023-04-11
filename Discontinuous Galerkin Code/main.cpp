@@ -3,6 +3,8 @@
 #include<cmath>
 #include<Eigen/Dense>
 #include<Eigen/Sparse>
+#include <fstream>
+#include <sstream>
 using namespace std;
 using namespace Eigen;
 
@@ -151,7 +153,7 @@ MatrixXf dMatrix(int N, VectorXf x, MatrixXf V){
 //Complete with no bug
 MatrixXf normals1D(int Nfp, int Nfaces, int K){
     MatrixXf nx(Nfp*Nfaces, K);
-    for (int i = 0; i < Nfp * Nfaces; i++){
+    for (int i = 0; i < K; i++){
         nx(0,i) = -1.0;
         nx(1,i) = 1.0;
     }
@@ -187,18 +189,23 @@ tuple<MatrixXf,MatrixXf> geometricFactors(MatrixXf x, MatrixXf Dr){
 }
 
 //This should work if calculations are correct
-MatrixXf advecRHS(int Nfp, int Nfaces, int K, VectorXi vmapM, VectorXi vmapP, MatrixXf nx, float a, MatrixXf u, int mapI, int vmapI, int mapO, MatrixXf Dr, MatrixXf rx, MatrixXf Lift, MatrixXf Fscale){
+MatrixXf advecRHS(int Np, int Nfp, int Nfaces, int K, VectorXi vmapM, VectorXi vmapP, MatrixXf nx, float a, MatrixXf u, int mapI, int vmapI, int mapO, MatrixXf Dr, MatrixXf rx, MatrixXf Lift, MatrixXf Fscale){
     float alpha = 1;
 
     MatrixXf du(Nfp*Nfaces, K);
 
-    for (int i = 0; i < vmapM.size(); i++){
-        int rowL = vmapM(i)%i;
-        int colL = floor(vmapM(i)/i);
-        int rowR = vmapP(i)%i;
-        int colR = floor(vmapP(i)/i);
-        float coeff = u(rowL, colL) - u(rowR, colR);
-        du.col(i) = ((coeff * (a*nx.col(i).array() - (1-alpha)*abs(a*nx.col(i).array())))/2).matrix();
+    int location = 0;
+    for (int i = 0; i < K; i++){
+        for (int j = 0; j < Nfaces; j++){
+            int M = vmapM(location);
+            int colL = floor(M/Np);
+            int P = vmapP(location);
+            int colR = floor(P/Np);
+            float coeff = u(M%Np, colL) - u(P%Np, colR);
+            float value = nx(j,i);
+            du(j,i) = coeff * (a*value - (1-alpha)*abs(a*value))/2;
+            location += 1;
+        }
     }
 
     //Now boundary conditions
@@ -264,6 +271,7 @@ int main() {
     VectorXd va = EToV.col(0).transpose();
     VectorXd vb = EToV.col(1).transpose();
 
+
     MatrixXf x(Np,K);
     for (int i = 0; i < Np; i++) {
         for (int j = 0; j < K; j++){
@@ -274,6 +282,7 @@ int main() {
         }
     }
     
+
     tuple<MatrixXf,MatrixXf> geom = geometricFactors(x, Dr);
     MatrixXf rx = get<0>(geom);
     
@@ -306,6 +315,7 @@ int main() {
     }
     
     MatrixXf nx = normals1D(Nfp, Nfaces, K);
+
     
     MatrixXf J = get<1>(geom);
     MatrixXf Fscale(Fmask.size(),K);
@@ -398,8 +408,7 @@ int main() {
             vmapM_3D[k][f] = node;
         }
     }
-    cout << "EToE" << endl << EToE << endl;
-    cout << "EToF" << endl << EToF << endl;
+    
     int k2, f2;
     for(int k = 0; k<K; ++k){
         for(int f = 0; f<Nfaces; ++f){
@@ -415,7 +424,7 @@ int main() {
 
             double D = pow((x1-x2),2);
             if (D < NODETOL){
-                vmapP_3D[k][f] = vmapM_3D[k2][f2];
+                vmapP_3D[k][f] = vidP;
             }
         }
     }
@@ -431,22 +440,21 @@ int main() {
             location += 1;
         }
     }
-    
+
     //Now find boundary nodes
     std::vector<int> boundaries;
 
     for (int i =0; i < vmapP.size(); i ++){
-        if(vmapP(i) = vmapM(i)){
-            boundaries.push_back(i);
+        if(vmapP(i) == vmapM(i)){
+            boundaries.push_back(vmapP(i));
         }
     }
 
     VectorXi vmapB(boundaries.size());
 
     for (int i = 0; i < boundaries.size(); i++){
-        vmapB(i) = vmapM(boundaries.at(i));
+        vmapB(i) = boundaries.at(i);
     }
-    
     //Must delete the 3D dynamic memory arrays to avoid mem leak!!
     for(int n = 0; n<K; ++n){
         delete [] vmapM_3D[n];
@@ -459,9 +467,6 @@ int main() {
     int mapO = K*Nfaces-1;
     int vmapI = 0;
     int vmapO = K*Np-1;
-    cout << "VmapM" << endl << vmapM << endl;
-    cout << "VmapP" << endl << vmapP << endl;
-    cout << "VmapB" << endl << vmapB << endl;
     //Build maps code complete!!!
     
     //Below We Begin the advection code
@@ -477,12 +482,23 @@ int main() {
     for (int t=0; t < Nsteps; t++){
         for (int i = 0; i < 5; i++){
             float localTime = time + rk4c(i) * dt;
-            MatrixXf rhsu = advecRHS(Nfp, Nfaces, K, vmapM, vmapP, nx, a, u, mapI, vmapI, mapO, Dr, rx, lift, Fscale);
-            MatrixXf result = rk4a(i)*result + dt*rhsu;
-            u = u + rk4b(i)*result;
+            MatrixXf rhsu = advecRHS(Np, Nfp, Nfaces, K, vmapM, vmapP, nx, a, u, mapI, vmapI, mapO, Dr, rx, lift, Fscale);
+            residual = rk4a(i)*residual + dt*rhsu;
+            u = u + rk4b(i)*residual;
         }
         time = time + dt;
     }
+
+    //Below code creates a text file of the DG output code
+    fstream myfile;
+    myfile.open("DGout.txt",fstream::out);
+    for (int n = 0; n < Np; n ++){
+        for (int j = 0; j < K; j++){
+            myfile << u(n,j) << "\t";
+        }
+        myfile<<endl;
+    }
+    myfile.close();
 
     return 0;   
 }
