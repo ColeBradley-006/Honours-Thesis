@@ -54,11 +54,10 @@ S4 = np.sum(np.square(y4error))
 
 errorPoints = np.array([math.log(math.sqrt(S1*2*math.pi/10)), math.log(math.sqrt(S2*2*math.pi/20)), math.log(math.sqrt(S3*2*math.pi/40)), math.log(math.sqrt(S4*2*math.pi/40))])
 errorX = np.array([math.log(10), math.log(20), math.log(40), math.log(80)])
-plt.plot(errorX, errorPoints, label="10 Elements")
+plt.plot(errorX, errorPoints)
 plt.xlabel("log(# of elements)")
 plt.ylabel("log(E)")
 plt.title("Error of DG scheme for varying # of elements")
-plt.legend()
 plt.savefig("errorGraph.png")
 plt.show()
 
