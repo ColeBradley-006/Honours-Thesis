@@ -1,86 +1,91 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from scipy.interpolate import lagrange
 
-filenames = ["0DGout.txt", "1DGout.txt", "2DGout.txt", "3DGout.txt"]
 
-points = [10, 20, 40, 80]
+"""NEW CODE"""
+
+"""This returns a function which then allows for an x-value to be input to solve for the points"""
+
+
+
+filenames = [["P1_E0_DGout.txt", "P1_E1_DGout.txt", "P1_E2_DGout.txt", "P1_E3_DGout.txt", "P1_E4_DGout.txt", "P1_E5_DGout.txt"],
+             ["P2_E0_DGout.txt", "P2_E1_DGout.txt", "P2_E2_DGout.txt", "P2_E3_DGout.txt", "P2_E4_DGout.txt", "P2_E5_DGout.txt"],
+             ["P3_E0_DGout.txt", "P3_E1_DGout.txt", "P3_E2_DGout.txt", "P3_E3_DGout.txt", "P3_E4_DGout.txt", "P3_E5_DGout.txt"],
+             ["P4_E0_DGout.txt", "P4_E1_DGout.txt", "P4_E2_DGout.txt", "P4_E3_DGout.txt", "P4_E4_DGout.txt", "P4_E5_DGout.txt"],
+             ["P5_E0_DGout.txt", "P5_E1_DGout.txt", "P5_E2_DGout.txt", "P5_E3_DGout.txt", "P5_E4_DGout.txt", "P5_E5_DGout.txt"]]
+filenamesx = [["X_P1_E0_DGout.txt", "X_P1_E1_DGout.txt", "X_P1_E2_DGout.txt", "X_P1_E3_DGout.txt", "X_P1_E4_DGout.txt", "X_P1_E5_DGout.txt"],
+             ["X_P2_E0_DGout.txt", "X_P2_E1_DGout.txt", "X_P2_E2_DGout.txt", "X_P2_E3_DGout.txt", "X_P2_E4_DGout.txt", "X_P2_E5_DGout.txt"],
+             ["X_P3_E0_DGout.txt", "X_P3_E1_DGout.txt", "X_P3_E2_DGout.txt", "X_P3_E3_DGout.txt", "X_P3_E4_DGout.txt", "X_P3_E5_DGout.txt"],
+             ["X_P4_E0_DGout.txt", "X_P4_E1_DGout.txt", "X_P4_E2_DGout.txt", "X_P4_E3_DGout.txt", "X_P4_E4_DGout.txt", "X_P4_E5_DGout.txt"],
+             ["X_P5_E0_DGout.txt", "X_P5_E1_DGout.txt", "X_P5_E2_DGout.txt", "X_P5_E3_DGout.txt", "X_P5_E4_DGout.txt", "X_P5_E5_DGout.txt"]]
+
+
+points = {0:3,1:6,2:12,3:24,4:48,5:96}
 cur = []
 for each in filenames:
-    cur.append(np.loadtxt(each))
-file = np.loadtxt("DGSine5s.txt")
+    new = []
+    for ele in each:
+        new.append(np.loadtxt(ele))
+    cur.append(new)
 
-exact1 = np.linspace(0, 2*np.pi, 10)
-exact1 = np.sin(exact1-0.5*5) + 2
-exact2 = np.linspace(0, 2*np.pi, 20)
-exact2 = np.sin(exact2-0.5*5) + 2
-exact3 = np.linspace(0, 2*np.pi, 40)
-exact3 = np.sin(exact3-0.5*5) + 2
-exact4 = np.linspace(0, 2*np.pi, 80)
-exact4 = np.sin(exact4-0.5*5) + 2
+curx = []
+for each in filenamesx:
+    new = []
+    for ele in each:
+        new.append(np.loadtxt(ele))
+    curx.append(new)
 
-y1 =  cur[0][8]
-y2 =  cur[1][8]
-y3 =  cur[2][8]
-y4 =  cur[3][8]
-x1 = np.linspace(0, 2*math.pi, 10)
-x2 = np.linspace(0, 2*math.pi, 20)
-x3 = np.linspace(0, 2*math.pi, 40)
-x4 = np.linspace(0, 2*math.pi, 80)
+storage = np.zeros(shape=(5,6))
+
+for count, p in enumerate(cur):
+    for incount, data in enumerate(p):
+        xpoints = curx[count][incount]
+        ypoints = cur[count][incount]
+        outputy = np.array([])
+        outputx = np.array([])
+        for i in range(points[incount]):
+            poly = lagrange(xpoints[:,i], ypoints[:,i])
+            x = np.linspace(xpoints[0,i], xpoints[count + 1, i], 100)
+            y = poly(x)
+            outputx = np.concatenate((outputx,x))
+            outputy = np.concatenate((outputy,y))
+
+        number = outputx.size
+        exact = np.sin(outputx-0.5*5) + 2
+        plt.plot(outputx, outputy, label="P" + str(count + 1) + " " + str(points[incount]) + " Elements")
+        error = exact - outputy
+        S = np.sum(np.square(error))
+        trueError = math.sqrt(S * 2.0 * math.pi / number)
+        storage[count][incount] = trueError
+        if incount == 4:
+            plt.plot(outputx, exact, label="Exact Solution")
+    plt.legend()
+    plt.savefig(str(count) + "errorGraph.png")
+    plt.show()
 
 
-
-plt.plot(x1, y1, label="10 Elements")
-plt.plot(x2, y2, label="20 Elements")
-plt.plot(x3, y3, label="30 Elements")
-plt.plot(x4, y4, label="40 Elements")
-plt.plot(x4, exact4, label="Exact Solution")
-plt.xlabel("x")
-plt.ylabel("U(x,t)")
-plt.title("Advecting a Sine wave after 5s for DG Scheme")
-plt.legend()
-plt.savefig("DGgraph.png")
-plt.show()
-
-y1error= exact1 - y1
-y2error= exact2 - y2
-y3error= exact3 - y3
-y4error= exact4 - y4
-
-S1 = np.sum(np.square(y1error))
-S2 = np.sum(np.square(y2error))
-S3 = np.sum(np.square(y3error))
-S4 = np.sum(np.square(y4error))
-
-errorPoints = np.array([math.log(math.sqrt(S1*2*math.pi/10)), math.log(math.sqrt(S2*2*math.pi/20)), math.log(math.sqrt(S3*2*math.pi/40)), math.log(math.sqrt(S4*2*math.pi/40))])
-errorX = np.array([math.log(10), math.log(20), math.log(40), math.log(80)])
-plt.plot(errorX, errorPoints)
+errorX = np.array([math.log(3), math.log(6), math.log(12), math.log(24), math.log(48), math.log(96)])
+for count, bar in enumerate(storage):
+        y = np.log(bar)
+        plt.plot(errorX, y, label="P" + str(count + 1) )
+        if count > 2:
+            order = abs(math.log((bar[2]-bar[1]) / (bar[1]-bar[0]))/math.log(2))
+            print(order)
+        elif count == 2:
+            order = abs(math.log((bar[3]-bar[2])/(bar[2]-bar[1])) / math.log(2))
+            print(order)
+        elif count == 1:
+            order = abs(math.log((bar[4]-bar[3])/(bar[3]-bar[2])) / math.log(2))
+            print(order)
+        else:
+            order = abs(math.log((bar[4]-bar[3])/(bar[3]-bar[2])) / math.log(2))
+            print(order)
 plt.xlabel("log(# of elements)")
 plt.ylabel("log(E)")
 plt.title("Error of DG scheme for varying # of elements")
+plt.legend()
 plt.savefig("errorGraph.png")
 plt.show()
 
-order = math.log((math.sqrt(S4*2*math.pi/40)-math.sqrt(S3*2*math.pi/40))/(math.sqrt(S3*2*math.pi/40)-math.sqrt(S2*2*math.pi/20)))/(math.log(2))
-print(order)
-"""# This all graphs the error:
-
-errorData = np.loadtxt("errors.txt")
-
-for i in range(len(errorData)):
-    for j in range(5):
-        errorData[i][j] = math.log(errorData[i][j])
-
-numPoints = [math.log(40), math.log(80), math.log(160), math.log(320), math.log(1280)]
-
-plt.plot(numPoints, errorData[0][0:5], label="Upwind")
-plt.plot(numPoints, errorData[1][0:5], label="Lax")
-plt.plot(numPoints, errorData[2][0:5], label="Lax-Wendroff")
-plt.plot(numPoints, errorData[3][0:5], label="Leap-Frog")
-plt.plot(numPoints, errorData[4][0:5], label="MacCormack")
-plt.xlabel("Log(# of Grid Points)")
-plt.ylabel("log(E)")
-plt.title("Error for Various Schemes on the Linear Advection Equation")
-plt.legend()
-plt.savefig("errorGraph.png")
-plt.show()"""
