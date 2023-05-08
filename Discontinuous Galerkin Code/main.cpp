@@ -9,7 +9,6 @@
 using namespace std;
 using namespace Eigen;
 
-
 //Good with proper outputs
 VectorXf jacobiP(int N, float a, float b, VectorXf x){
     
@@ -139,7 +138,6 @@ MatrixXf vandermonde(int N, VectorXf x){
     return V1D;
 } 
 
-
 //Complete with no bug
 MatrixXf gradVandermonde(int N, VectorXf x){
     MatrixXf DV1D(x.size(), N+1);
@@ -150,13 +148,11 @@ MatrixXf gradVandermonde(int N, VectorXf x){
     return DV1D;
 }
 
-
 //Complete with no bug
 MatrixXf dMatrix(int N, VectorXf x, MatrixXf V){
     MatrixXf Vr = gradVandermonde(N, x);
     return Vr * V.inverse();
 }
-
 
 //Complete with no bug
 MatrixXf normals1D(int Nfp, int Nfaces, int K){
@@ -167,7 +163,6 @@ MatrixXf normals1D(int Nfp, int Nfaces, int K){
     }
     return nx;
 }
-
 
 //Complete with no bug
 tuple<int, VectorXf, int, MatrixXd> meshGen(float xMin, float xMax, int K){
@@ -186,8 +181,6 @@ tuple<int, VectorXf, int, MatrixXd> meshGen(float xMin, float xMax, int K){
 
     return tuple<int, VectorXf, int, MatrixXd>{Nv,VX,K,EToV};
 }
-
-
 
 //Good, no bugs
 tuple<MatrixXf,MatrixXf> geometricFactors(MatrixXf x, MatrixXf Dr){
@@ -491,7 +484,6 @@ int main() {
             //Below We Begin the advection code
             float FinalTime = 5;
             MatrixXf u = (sin(x.array())+2).matrix();
-
             float time = 0;
             MatrixXf residual = MatrixXf::Zero(Np,K);
             float dt = 0.001;
