@@ -62,26 +62,27 @@ for count, p in enumerate(cur):
         if incount == 4:
             plt.plot(outputx, exact, label="Exact Solution")
     plt.legend()
-    plt.savefig(str(count) + "errorGraph.png")
+    plt.savefig(str(count) + "SineGraph.png")
     plt.show()
 
 
 errorX = np.array([math.log(3), math.log(6), math.log(12), math.log(24), math.log(48), math.log(96)])
 for count, bar in enumerate(storage):
-        y = np.log(bar)
-        plt.plot(errorX, y, label="P" + str(count + 1) )
-        if count > 2:
-            order = abs(math.log((bar[2]-bar[1]) / (bar[1]-bar[0]))/math.log(2))
-            print(order)
-        elif count == 2:
-            order = abs(math.log((bar[3]-bar[2])/(bar[2]-bar[1])) / math.log(2))
-            print(order)
-        elif count == 1:
-            order = abs(math.log((bar[4]-bar[3])/(bar[3]-bar[2])) / math.log(2))
-            print(order)
-        else:
-            order = abs(math.log((bar[4]-bar[3])/(bar[3]-bar[2])) / math.log(2))
-            print(order)
+    print(bar)
+    y = np.log(bar)
+    plt.plot(errorX, y, label="P" + str(count + 1) )
+    if count > 2:
+        order = abs(math.log((bar[2]-bar[1]) / (bar[1]-bar[0]))/math.log(2))
+        print(order)
+    elif count == 2:
+        order = abs(math.log((bar[3]-bar[2])/(bar[2]-bar[1])) / math.log(2))
+        print(order)
+    elif count == 1:
+        order = abs(math.log((bar[4]-bar[3])/(bar[3]-bar[2])) / math.log(2))
+        print(order)
+    else:
+        order = abs(math.log((bar[4]-bar[3])/(bar[3]-bar[2])) / math.log(2))
+        print(order)
 plt.xlabel("log(# of elements)")
 plt.ylabel("log(E)")
 plt.title("Error of DG scheme for varying # of elements")
